@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import QuickActions from './QuickActions';
 
 function App() {
   const [isLogin, setIsLogin] = useState(true);
   const [user, setUser] = useState(null);
   const [formData, setFormData] = useState({ username: '', email: '', password: '' });
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferAmount, setTransferAmount] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -18,35 +21,79 @@ function App() {
     }
   };
 
+  const handleTransfer = () => {
+    if (!transferAmount || Number(transferAmount) <= 0) {
+      alert("Please enter a valid amount");
+      return;
+    }
+    if (Number(transferAmount) > user.balance) {
+      alert("Insufficient funds!");
+      return;
+    }
+    // Simulate a transfer
+    alert(`Transfer of ₦${Number(transferAmount).toLocaleString()} successful!`);
+    setUser({ ...user, balance: user.balance - Number(transferAmount) });
+    setShowTransfer(false);
+    setTransferAmount('');
+  };
+
   // --- DASHBOARD VIEW ---
-  if (user) return (
-    <div style={{ background: '#020617', color: 'white', minHeight: '100vh', padding: '40px', fontFamily: 'system-ui' }}>
-      <div style={{ maxWidth: '450px', margin: 'auto', background: '#0f172a', padding: '30px', borderRadius: '24px', border: '1px solid #1e293b', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-          <h2 style={{ fontStyle: 'italic', fontWeight: '900', color: '#f97316', margin: 0 }}>ABBEY</h2>
-          <span style={{ fontSize: '12px', color: '#64748b' }}>Active Session</span>
-        </div>
-        
-        <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 5px 0' }}>TOTAL BALANCE</p>
-        <h1 style={{ fontSize: '42px', margin: '0 0 20px 0', fontWeight: '700' }}>₦{Number(user.balance).toLocaleString()}.00</h1>
-        
-        <div style={{ background: '#1e293b', padding: '20px', borderRadius: '16px', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <span style={{ color: '#94a3b8' }}>Account Name</span>
-            <span>{user.username}</span>
+  if (user) {
+    return (
+      <div style={{ background: '#020617', color: 'white', minHeight: '100vh', padding: '40px', fontFamily: 'system-ui' }}>
+        <div style={{ maxWidth: '450px', margin: 'auto', background: '#0f172a', padding: '30px', borderRadius: '24px', border: '1px solid #1e293b', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)', position: 'relative' }}>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+            <h2 style={{ fontStyle: 'italic', fontWeight: '900', color: '#f97316', margin: 0 }}>ABBEY</h2>
+            <span style={{ fontSize: '12px', color: '#64748b' }}>Active Session</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: '#94a3b8' }}>Account Number</span>
-            <span style={{ letterSpacing: '1px' }}>{user.accountNo || '3094857261'}</span>
+          
+          <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 5px 0' }}>TOTAL BALANCE</p>
+          <h1 style={{ fontSize: '42px', margin: '0 0 20px 0', fontWeight: '700' }}>₦{Number(user.balance || 0).toLocaleString()}.00</h1>
+          
+          <div style={{ background: '#1e293b', padding: '20px', borderRadius: '16px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <span style={{ color: '#94a3b8' }}>Account Name</span>
+              <span>{user.username}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: '#94a3b8' }}>Account Number</span>
+              <span style={{ letterSpacing: '1px' }}>{user.accountNo || '3094857261'}</span>
+            </div>
           </div>
+
+          <p style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold', marginBottom: '10px' }}>QUICK SERVICES</p>
+          <QuickActions onAction={(name) => name === 'Transfer' && setShowTransfer(true)} />
+
+          <button onClick={() => setUser(null)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #334155', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: '600', marginTop: '20px' }}>
+            SECURE LOGOUT
+          </button>
         </div>
 
-        <button onClick={() => setUser(null)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #334155', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: '600' }}>
-          SECURE LOGOUT
-        </button>
+        {/* TRANSFER MODAL */}
+        {showTransfer && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+            <div style={{ background: '#0f172a', padding: '30px', borderRadius: '24px', width: '100%', maxWidth: '350px', border: '1px solid #1e293b' }}>
+              <h3 style={{ margin: '0 0 20px 0', color: '#f97316' }}>Send Money</h3>
+              <input 
+                type="number" placeholder="Enter Amount" 
+                style={{ width: '100%', padding: '15px', marginBottom: '15px', borderRadius: '12px', border: '1px solid #1e293b', background: '#1e293b', color: 'white', outline: 'none' }}
+                onChange={(e) => setTransferAmount(e.target.value)}
+              />
+              <input 
+                type="text" placeholder="Account Number" 
+                style={{ width: '100%', padding: '15px', marginBottom: '20px', borderRadius: '12px', border: '1px solid #1e293b', background: '#1e293b', color: 'white', outline: 'none' }}
+              />
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => setShowTransfer(false)} style={{ flex: 1, padding: '12px', borderRadius: '10px', background: 'transparent', color: '#94a3b8', border: '1px solid #334155', cursor: 'pointer' }}>Cancel</button>
+                <button onClick={handleTransfer} style={{ flex: 1, padding: '12px', borderRadius: '10px', background: '#f97316', color: 'white', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>Send</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  }
 
   // --- LOGIN/REGISTER VIEW ---
   return (
