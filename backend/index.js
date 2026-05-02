@@ -58,6 +58,20 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+const createTableQuery = `
+  CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+`;
+
+pool.query(createTableQuery)
+  .then(() => console.log("✅ Users table is ready"))
+  .catch((err) => console.error("❌ Error creating table:", err));
+
 // Use Render's dynamic port or default to 5000
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 SERVER ON PORT ${PORT}`));
