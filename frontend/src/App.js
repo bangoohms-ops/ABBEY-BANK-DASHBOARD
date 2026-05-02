@@ -9,6 +9,17 @@ function App() {
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferAmount, setTransferAmount] = useState('');
 
+  const createTableQuery = `
+  CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    balance DECIMAL(15,2) DEFAULT 5000.00, -- Give them some starting money!
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+`;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const url = isLogin ? '/api/auth/login' : '/api/auth/register';
