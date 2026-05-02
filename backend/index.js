@@ -6,13 +6,23 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// --- FIX STARTS HERE ---
+// This uses the Render Environment Variable if it exists, otherwise defaults to your local setup
+const isProduction = process.env.NODE_ENV === 'production' || process.env.DATABASE_URL;
+
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'postgres',
-  password: 'your_password', 
-  port: 5432,
+  connectionString: process.env.DATABASE_URL, // Render provides this
+  ssl: isProduction ? { rejectUnauthorized: false } : false, // Required for Render
+  // Fallback for local testing if DATABASE_URL isn't set
+  ...( !process.env.DATABASE_URL && {
+    user: 'postgres',
+    host: 'localhost',
+    database: 'postgres',
+    password: 'your_password', 
+    port: 5432,
+  })
 });
+// --- FIX ENDS HERE ---
 
 pool.connect((err) => {
   if (err) console.log("❌ CONNECTION ERROR:", err.message);
@@ -48,4 +58,6 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.listen(5000, () => console.log("🚀 SERVER ON PORT 5000"));
+// Use Render's dynamic port or default to 5000
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 SERVER ON PORT ${PORT}`));

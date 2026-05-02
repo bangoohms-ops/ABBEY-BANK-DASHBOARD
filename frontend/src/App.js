@@ -13,7 +13,7 @@ function App() {
     e.preventDefault();
     const url = isLogin ? '/api/auth/login' : '/api/auth/register';
     try {
-      const { data } = await axios.post(`http://localhost:5000${url}`, formData);
+     const { data } = await axios.post(`https://abbey-bank-dashboard.onrender.com${url}`, formData);
       if (isLogin) setUser(data.user);
       else { alert("Registration successful! Please login."); setIsLogin(true); }
     } catch (err) {
