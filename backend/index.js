@@ -24,7 +24,7 @@ const setupDatabase = async () => {
         username VARCHAR(255) NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
         password TEXT NOT NULL,
-        balance DECIMAL(15,2) DEFAULT 5000.00,
+        balance DECIMAL(15,2) DEFAULT 500000.00,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `;
