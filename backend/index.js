@@ -14,7 +14,10 @@ const pool = new Pool({
 // --- DATABASE TABLE SETUP ---
 const setupDatabase = async () => {
   try {
-    // Note: I removed the DROP TABLE line so your current users stay safe!
+    // 1. THIS LINE IS THE FIX: It wipes the old table to add the 'balance' column
+    await pool.query('DROP TABLE IF EXISTS users CASCADE;');
+    
+    // 2. This creates the fresh table with 'username' and 'balance'
     const createTableQuery = `
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -26,7 +29,7 @@ const setupDatabase = async () => {
       );
     `;
     await pool.query(createTableQuery);
-    console.log("✅ Database Schema Verified");
+    console.log("✅ Database Reset and Synced with Balance column");
   } catch (err) {
     console.error("❌ Setup Error:", err);
   }
@@ -58,16 +61,18 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// --- NEW: TRANSACTION ROUTE (For Transfer, Data, Bills) ---
+// --- TRANSACTION ROUTE ---
 app.post('/api/account/update-balance', async (req, res) => {
-  const { userId, amount } = req.body; // amount can be negative for deductions
+  const { userId, amount } = req.body; 
   try {
     const result = await pool.query(
       'UPDATE users SET balance = balance + $1 WHERE id = $2 RETURNING balance',
       [amount, userId]
     );
+    if (result.rows.length === 0) return res.status(404).json({ error: "User not found" });
     res.json({ newBalance: result.rows[0].balance });
   } catch (err) {
+    console.log("TRANS ERROR:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
