@@ -1,21 +1,21 @@
 const { Pool } = require("pg");
 
 const pool = new Pool({
-  user: "mac",
-  host: "localhost",
-  database: "postgres",
-  password: "",
-  port: 5432,
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+  user: process.env.DB_USER || "postgres",
+  host: process.env.DB_HOST || "localhost",
+  database: process.env.DB_NAME || "mac",
+  password: process.env.DB_PASSWORD || "1985",
+  port: parseInt(process.env.DB_PORT || "5432"),
+  // ADD THESE CLOUD PARAMETERS:
+  idleTimeoutMillis: 30000, // Close idle connections after 30 seconds to force fresh clones
+  connectionTimeoutMillis: 2000, // Return an error quickly if the database hangs
 });
 
-pool.connect((err, client, release) => {
-  if (err) {
-    return console.error("❌ Database Connection Error:", err.stack);
-  }
-  console.log("🐘 PostgreSQL Database Connected");
-  release();
+// Setup an error listener on the pool to catch silent connection drops
+pool.on('error', (err, client) => {
+  console.error('💥 Unexpected idle PostgreSQL client error:', err.message);
 });
 
-module.exports = {
-  query: (text, params) => pool.query(text, params),
-};
+module.exports = pool;
