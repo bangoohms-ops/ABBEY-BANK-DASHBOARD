@@ -8,9 +8,8 @@ const pool = new Pool({
   database: process.env.DB_NAME || "mac",
   password: process.env.DB_PASSWORD || "1985",
   port: parseInt(process.env.DB_PORT || "5432"),
-  // ADD THESE CLOUD PARAMETERS:
-  idleTimeoutMillis: 30000, // Close idle connections after 30 seconds to force fresh clones
-  connectionTimeoutMillis: 2000, // Return an error quickly if the database hangs
+  idleTimeoutMillis: 30000, 
+  connectionTimeoutMillis: 2000, 
 });
 
 // Setup an error listener on the pool to catch silent connection drops
