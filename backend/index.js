@@ -1,110 +1,100 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const pool = require('./db'); // Cleaned to use your standard centralized native db structure
+const bcrypt = require('bcryptjs');
+const pool = require('./db');
 const { transferFunds } = require('./transactionController');
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 5000;
 
-// --- GLOBAL MIDDLEWARE ---
-app.use(cors());
+app.use(cors({
+  origin: 'https://abbey-bank-dashboard-2a8h.onrender.com',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
-// --- BASE CHECK LINK ---
-app.get('/', (req, res) => {
-  res.send('Akoka Bank Backend Core Online.');
-});
-
-// --- AUTHENTICATION ENDPOINTS ---
-app.post('/api/auth/register', async (req, res) => {
-  const { username, email, password } = req.body;
-  if (!username || !email || !password) {
-    return res.status(400).json({ error: "All fields are required" });
-  }
+// --- DATABASE AUTO-INITIALIZATION ---
+async function initializeDatabase() {
   try {
-    const generatedAccountNo = Math.floor(1000000000 + Math.random() * 9000000000).toString();
-    const defaultPin = "1234"; 
-
-    const result = await pool.query(
-      'INSERT INTO users (username, email, password, account_number, transaction_pin) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, email, balance, account_number',
-      [username, email.trim().toLowerCase(), password, generatedAccountNo, defaultPin]
-    );
-    res.json({ success: true, user: result.rows[0] });
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        transaction_pin VARCHAR(255),
+        account_number VARCHAR(20) UNIQUE NOT NULL,
+        balance DECIMAL(15, 2) DEFAULT 0.00
+      );
+      CREATE TABLE IF NOT EXISTS transactions (
+        id SERIAL PRIMARY KEY,
+        sender_id INT REFERENCES users(id),
+        receiver_id INT REFERENCES users(id),
+        amount DECIMAL(15, 2),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        reference_id VARCHAR(50)
+      );
+    `);
+    console.log("✅ Database tables checked/created.");
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("❌ Database initialization error:", err.message);
+  }
+}
+
+pool.connect().then(() => {
+  console.log("✅ Successfully connected to PostgreSQL!");
+  initializeDatabase();
+});
+
+// --- REGISTRATION ---
+app.post('/api/auth/register', async (req, res) => {
+  const { username, email, password, pin } = req.body;
+  if (!username || !email || !password || !pin) {
+    return res.status(400).json({ error: "All fields including PIN are required" });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPin = await bcrypt.hash(String(pin), 10);
+    const accountNo = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+    const signupBonus = 500000.00;
+    
+    const result = await pool.query(
+      'INSERT INTO users (username, email, password, account_number, balance, transaction_pin) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username, email, account_number, balance',
+      [username, email.toLowerCase().trim(), hashedPassword, accountNo, signupBonus, hashedPin]
+    );
+    res.status(201).json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    console.error("❌ REGISTRATION FAILED:", err.message);
+    res.status(500).json({ error: "Registration error: Email might be taken" });
   }
 });
 
+// --- LOGIN ---
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: "Email and password are required" });
-  }
+  if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+
   try {
-    const cleanEmail = email.trim().toLowerCase();
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [cleanEmail]);
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase().trim()]);
+    if (result.rows.length === 0) return res.status(401).json({ error: "Invalid credentials" });
     
-    if (result.rows.length > 0) {
-      const user = result.rows[0];
-      
-      if (user.password === password) {
-        delete user.password; // Strip credential out before shipping payload
-        return res.json({ user });
-      } else {
-        return res.status(401).json({ error: "Invalid login credentials provided" });
-      }
-    } else {
-      return res.status(401).json({ error: "Invalid login credentials provided" });
-    }
+    const user = result.rows[0];
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
+    
+    const { password: _, transaction_pin: __, ...userSafe } = user;
+    res.json({ user: userSafe });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("❌ LOGIN ERROR:", err.message);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// --- TRANSACTIONS BOUNDARY ROUTE LINK ---
-// Automatically calls our secure isolated client pipeline logic from transactionController
+// --- TRANSACTIONS ---
 app.post('/api/transfer', transferFunds);
 
-
-// --- 🔥 ADDED: RETRIEVE USER HISTORICAL TRANSACTIONS ---
-// Handles both integer IDs and fallback string emails dynamically
-app.get('/api/transactions/:userId', async (req, res) => {
-  const { userId } = req.params;
-  const isEmail = typeof userId === 'string' && userId.includes('@');
-  
-  try {
-    // 1. Resolve the user's absolute database ID if an email was passed from the client session
-    let targetId = userId;
-    if (isEmail) {
-      const userLookup = await pool.query('SELECT id FROM users WHERE email = $1', [userId.trim().toLowerCase()]);
-      if (userLookup.rowCount === 0) {
-        return res.status(200).json({ success: true, data: [] });
-      }
-      targetId = userLookup.rows[0].id;
-    }
-
-    // 2. Query the ledger tracking records matching sender OR receiver parameters
-    const historyRes = await pool.query(`
-      SELECT 
-        t.id, t.sender_id, t.receiver_id, t.amount, t.reference_id, t.created_at, t.status,
-        u1.account_number as sender_account,
-        u2.account_number as receiver_account
-      FROM transactions t
-      JOIN users u1 ON t.sender_id = u1.id
-      JOIN users u2 ON t.receiver_id = u2.id
-      WHERE t.sender_id = $1 OR t.receiver_id = $1
-      ORDER BY t.created_at DESC
-    `, [targetId]);
-
-    res.status(200).json({ success: true, data: historyRes.rows });
-  } catch (err) {
-    console.error("Ledger history data payload fetch exception:", err);
-    res.status(500).json({ success: false, message: "Could not retrieve structural transaction list matrix." });
-  }
-});
-
-
-// --- FIRE ALL CYLINDERS ---
-app.listen(PORT, () => {
-  console.log(`\n====> CORE ENGINE ENGAGED: LISTENING ON PORT ${PORT} <====\n`);
-});
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
